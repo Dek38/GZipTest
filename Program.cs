@@ -8,9 +8,9 @@ namespace GZipTest
         const int NUMBER_OF_TASKS = 20;
         const int DATA_BLOCK_SIZE = 32768; //1048576
 
-        private static object inputLocker = new object();
-        private static object outputLocker = new object();
-        private static int inputPos = 0;
+        private static object _inputLocker = new object();
+        private static object _outputLocker = new object();
+        private static int _inputPos = 0;
 
         static async void ReadFile(CancellationTokenSource token, string fileName, QueueWraper inputQueue, CompressionMode mode)
         {
@@ -24,7 +24,7 @@ namespace GZipTest
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("The read task is stoped");
+                    Console.WriteLine("The read task is stopped");
                     Console.WriteLine(ex.Message);
                     token.Cancel();
                     return;
@@ -63,12 +63,12 @@ namespace GZipTest
                             localLength = originalFileStream.Read(tmp, 0, sizeof(int));
                             if (localLength <= 0)
                             {
-                                lock (inputLocker)
+                                lock (_inputLocker)
                                 {
                                     inputQueue.m_NoDataForQueue = true;
                                 }
                                 originalFileStream.Dispose();
-                                Console.WriteLine($"The read task finished work. The Number of read blocks is {counter}");
+                                Console.WriteLine($"The read task has finished work. The number of read blocks is {counter}");
                                 return;
                             }
                             Array.Reverse(tmp);
@@ -83,17 +83,17 @@ namespace GZipTest
                         }
                         if (localLength <= 0)
                         {
-                            lock (inputLocker)
+                            lock (_inputLocker)
                             {
                                 inputQueue.m_NoDataForQueue = true;
                             }
                             originalFileStream.Dispose();
-                            Console.WriteLine($"The read task finished work. The number of read blocks is {counter}");
+                            Console.WriteLine($"The read task has finished work. The number of read blocks is {counter}");
                             return;
                         }
                         else
                         {
-                            lock (inputLocker)
+                            lock (_inputLocker)
                             {
                                 inputQueue.Enqueue(buffer);
                             }
@@ -101,7 +101,7 @@ namespace GZipTest
                     }
                     catch (Exception ex)
                     {
-                        lock (inputLocker)
+                        lock (_inputLocker)
                         {
                             inputQueue.m_NoDataForQueue = true;
                         }
@@ -142,21 +142,21 @@ namespace GZipTest
                 }
                 
                 bool isMapReaded = false;
-                int leftedTasks = 0;
+                int runningTasks = 0;
                 int currentPosition = 0;
                 while (!token.IsCancellationRequested)
                 {
                     try
                     { 
                         CompressedData data;
-                        lock (outputLocker)
+                        lock (_outputLocker)
                         {
                             isMapReaded = outputMap.TryGetValue(currentPosition, out data);
                             if (isMapReaded == true)
                             {
                                 outputMap.Remove(currentPosition);
                             }
-                            leftedTasks = outputMap.m_LeftedTasks;
+                            runningTasks = outputMap.m_RunningTasks;
                         }
                         if (isMapReaded == true)
                         {
@@ -175,22 +175,22 @@ namespace GZipTest
                                 }
                                 if ((currentPosition % 100) == 0)
                                 {
-                                    Console.WriteLine($"The number of writen blocks is {currentPosition}");
+                                    Console.WriteLine($"The number of written blocks is {currentPosition}");
                                 }
                                 currentPosition++;
                             }
                             catch (Exception ex)
                             {
-                                Console.WriteLine("The write task is stoped");
+                                Console.WriteLine("The write task is stopped");
                                 Console.WriteLine(ex.Message);
                                 outputFile.Dispose();
                                 token.Cancel();
                                 return;
                             }
                         }
-                        else if ((leftedTasks == 0) && (outputMap.Count == 0))
+                        else if ((runningTasks == 0) && (outputMap.Count == 0))
                         {
-                            Console.WriteLine($"The write task finished work. The number of written blocks is {currentPosition}");
+                            Console.WriteLine($"The write task has finished work. The number of written blocks is {currentPosition}");
                             outputFile.Dispose();
                             return;
                         }
@@ -201,7 +201,7 @@ namespace GZipTest
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine("The write task is stoped");
+                        Console.WriteLine("The write task is stopped");
                         Console.WriteLine(ex.Message);
                         outputFile.Dispose();
                         token.Cancel();
@@ -211,7 +211,7 @@ namespace GZipTest
             }
             catch (Exception ex)
             {
-                Console.WriteLine("The write task is stoped");
+                Console.WriteLine("The write task is stopped");
                 Console.WriteLine(ex.Message);
                 token.Cancel();
             }
@@ -228,14 +228,14 @@ namespace GZipTest
                     byte[]? buffer;
                     bool thereIsNoMoreData = false;
                     bool isQueueReaded = false;
-                    lock (inputLocker)
+                    lock (_inputLocker)
                     {
                         isQueueReaded = inputQueue.TryDequeue(out buffer);
                         thereIsNoMoreData = inputQueue.m_NoDataForQueue;
                         if (isQueueReaded == true)
                         {
-                            localInputPos = inputPos;
-                            inputPos++;
+                            localInputPos = _inputPos;
+                            _inputPos++;
                         }
                     }
                     if (isQueueReaded == true)
@@ -253,7 +253,7 @@ namespace GZipTest
                                 bufferToWrite.Length = bufferToWrite.Data.Length;
                                 bufferToWrite.Mode = CompressionMode.Compress;
 
-                                lock (outputLocker)
+                                lock (_outputLocker)
                                 {
                                     outputMap.Add(localInputPos, bufferToWrite);
                                 }
@@ -261,7 +261,7 @@ namespace GZipTest
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"The compression task {id} is stoped");
+                            Console.WriteLine($"The compression task {id} is stopped");
                             Console.WriteLine(ex.Message);
                             token.Cancel();
                             return;
@@ -274,15 +274,15 @@ namespace GZipTest
                     }
                     else if (inputQueue.Count == 0)
                     {
-                        lock (outputLocker)
+                        lock (_outputLocker)
                         {
-                            outputMap.m_LeftedTasks--;
+                            outputMap.m_RunningTasks--;
                         }
                         break;
                     }
                     await Task.Delay(1, token.Token);
                 }
-                Console.WriteLine($"Task {id} finish compression");
+                Console.WriteLine($"Task {id} has finished compression");
             }
             catch (Exception ex)
             {
@@ -303,14 +303,14 @@ namespace GZipTest
                     byte[]? buffer = new byte[DATA_BLOCK_SIZE * 2];
                     bool thereIsNoMoreData = false;
                     bool isQueueReaded = false;
-                    lock (inputLocker)
+                    lock (_inputLocker)
                     {
                         isQueueReaded = inputQueue.TryDequeue(out buffer);
                         thereIsNoMoreData = inputQueue.m_NoDataForQueue;
                         if (isQueueReaded == true)
                         {
-                            localInputPos = inputPos;
-                            inputPos++;
+                            localInputPos = _inputPos;
+                            _inputPos++;
                         }
                     }
                     if (isQueueReaded == true)
@@ -325,7 +325,7 @@ namespace GZipTest
                             {
                                 decompressor.CopyTo(destination);
                             }
-                            lock (outputLocker)
+                            lock (_outputLocker)
                             {
                                 data.Data = destination.ToArray();
                                 data.Length = data.Data.Length;
@@ -335,7 +335,7 @@ namespace GZipTest
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"The decompression task {id} is stoped");
+                            Console.WriteLine($"The decompression task {id} is stopped");
                             Console.WriteLine(ex.Message);
                             token.Cancel();
                             return;
@@ -348,14 +348,14 @@ namespace GZipTest
                     }
                     else if (inputQueue.Count == 0)
                     {
-                        lock (outputLocker)
+                        lock (_outputLocker)
                         {
-                            outputMap.m_LeftedTasks--;
+                            outputMap.m_RunningTasks--;
                         }
                         break;
                     }
                 }
-                Console.WriteLine($"Task {id} finish decompression");
+                Console.WriteLine($"Task {id} has finish decompression");
             }
             catch (Exception ex)
             {
