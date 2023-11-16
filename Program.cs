@@ -5,7 +5,7 @@ namespace GZipTest
 {
     internal static class Program
     {
-        const int NUMEBER_OF_TASKS = 20;
+        const int NUMBER_OF_TASKS = 20;
         const int DATA_BLOCK_SIZE = 32768; //1048576
 
         private static object inputLocker = new object();
@@ -35,8 +35,8 @@ namespace GZipTest
                     try
                     {
                         byte[]? buffer = null;
-                        int localLenght = 0;
-                        if (inputQueue.Count >= NUMEBER_OF_TASKS * 10)
+                        int localLength = 0;
+                        if (inputQueue.Count >= NUMBER_OF_TASKS * 10)
                         {
                             await Task.Delay(1, token.Token);
                             continue;
@@ -45,11 +45,11 @@ namespace GZipTest
                         {
                             byte[] tmp = new byte[DATA_BLOCK_SIZE];
 
-                            localLenght = originalFileStream.Read(tmp, 0, DATA_BLOCK_SIZE);
-                            if (localLenght > 0)
+                            localLength = originalFileStream.Read(tmp, 0, DATA_BLOCK_SIZE);
+                            if (localLength > 0)
                             {
-                                buffer = new byte[localLenght];
-                                Array.Copy(tmp, 0, buffer, 0, localLenght);
+                                buffer = new byte[localLength];
+                                Array.Copy(tmp, 0, buffer, 0, localLength);
                                 counter++;
                                 if ((counter % 100) == 0)
                                 {
@@ -60,8 +60,8 @@ namespace GZipTest
                         else if (mode == CompressionMode.Decompress)
                         {
                             byte[] tmp = new byte[4];
-                            localLenght = originalFileStream.Read(tmp, 0, sizeof(int));
-                            if (localLenght <= 0)
+                            localLength = originalFileStream.Read(tmp, 0, sizeof(int));
+                            if (localLength <= 0)
                             {
                                 lock (inputLocker)
                                 {
@@ -72,16 +72,16 @@ namespace GZipTest
                                 return;
                             }
                             Array.Reverse(tmp);
-                            localLenght = BitConverter.ToInt32(tmp, 0);
-                            buffer = new byte[localLenght];
-                            localLenght = originalFileStream.Read(buffer, 0, localLenght);
+                            localLength = BitConverter.ToInt32(tmp, 0);
+                            buffer = new byte[localLength];
+                            localLength = originalFileStream.Read(buffer, 0, localLength);
                             counter++;
                             if ((counter % 100) == 0)
                             {
                                 Console.WriteLine($"The number of read blocks is {counter}");
                             }
                         }
-                        if (localLenght <= 0)
+                        if (localLength <= 0)
                         {
                             lock (inputLocker)
                             {
@@ -106,7 +106,7 @@ namespace GZipTest
                             inputQueue.m_NoDataForQueue = true;
                         }
                         originalFileStream.Dispose();
-                        Console.WriteLine("The read task is stoped");
+                        Console.WriteLine("The read task is stopped");
                         Console.WriteLine(ex.Message);
                         token.Cancel();
                         return;
@@ -117,7 +117,7 @@ namespace GZipTest
             }
             catch (Exception ex)
             {
-                Console.WriteLine("The read task is stoped");
+                Console.WriteLine("The read task is stopped");
                 Console.WriteLine(ex.Message);
                 token.Cancel();
             }
@@ -135,7 +135,7 @@ namespace GZipTest
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("The write task is stoped");
+                    Console.WriteLine("The write task is stopped");
                     Console.WriteLine(ex.Message);
                     token.Cancel();
                     return;
@@ -190,7 +190,7 @@ namespace GZipTest
                         }
                         else if ((leftedTasks == 0) && (outputMap.Count == 0))
                         {
-                            Console.WriteLine($"The write task finished work. The number of writen blocks is {currentPosition}");
+                            Console.WriteLine($"The write task finished work. The number of written blocks is {currentPosition}");
                             outputFile.Dispose();
                             return;
                         }
@@ -286,7 +286,7 @@ namespace GZipTest
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"The compression task {id} is stoped");
+                Console.WriteLine($"The compression task {id} is stopped");
                 Console.WriteLine(ex.Message);
                 token.Cancel();
             }
@@ -359,7 +359,7 @@ namespace GZipTest
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"The decompression task {id} is stoped");
+                Console.WriteLine($"The decompression task {id} is stopped");
                 Console.WriteLine(ex.Message);
                 token.Cancel();
             }
@@ -387,15 +387,15 @@ namespace GZipTest
                                 e.Cancel = true;
                                 _cts.Cancel();
                             };
-                QueueWraper inputQueue = new QueueWraper(DATA_BLOCK_SIZE * NUMEBER_OF_TASKS * 2);
-                MapWraper outputDictionary = new MapWraper(DATA_BLOCK_SIZE * NUMEBER_OF_TASKS * 2, NUMEBER_OF_TASKS);
+                QueueWraper inputQueue = new QueueWraper(DATA_BLOCK_SIZE * NUMBER_OF_TASKS * 2);
+                MapWraper outputDictionary = new MapWraper(DATA_BLOCK_SIZE * NUMBER_OF_TASKS * 2, NUMBER_OF_TASKS);
 
                 if (args[0] == "compress")
                 {
                     try
                     {
                         Task.Run(() => { ReadFile(_cts, args[1], inputQueue, CompressionMode.Compress); });
-                        for (var i = 0; i < NUMEBER_OF_TASKS; i++)
+                        for (var i = 0; i < NUMBER_OF_TASKS; i++)
                         {
                             var local = i;
                             Task.Run(() => { Compress(_cts, inputQueue, outputDictionary, local + 1);});
@@ -412,7 +412,7 @@ namespace GZipTest
                     try
                     {
                         Task.Run(() => { ReadFile(_cts, args[1], inputQueue, CompressionMode.Decompress); });
-                        for (var i = 0; i < NUMEBER_OF_TASKS; i++)
+                        for (var i = 0; i < NUMBER_OF_TASKS; i++)
                         {
                             var local = i;
                             Task.Run(() => { Decompress(_cts, inputQueue, outputDictionary, local + 1); });
